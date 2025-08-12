@@ -8,7 +8,7 @@ Resources:
   HelloWorldLambda:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: hello-world-lambda
+      FunctionName: hello-world-lambda-pipeline
       Handler: index.handler
       Role: arn:aws:iam::132502993358:role/lambda-full-access
       Runtime: python3.12
