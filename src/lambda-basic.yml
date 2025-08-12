@@ -10,7 +10,7 @@ Resources:
     Properties:
       FunctionName: hello-world-lambda
       Handler: index.handler
-      Role: arn:aws:iam::123456789012:role/lambda-execution-role
+      Role: arn:aws:iam::132502993358:role/lambda-full-access
       Runtime: python3.12
       Code:
         S3Bucket: !Ref CodeS3Bucket
