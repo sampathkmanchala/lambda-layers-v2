@@ -22,7 +22,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: hello-world-lambda2-pipeline
-      Handler: index.handler2
+      Handler: lambda_function.handler2
       Role: arn:aws:iam::132502993358:role/lambda-full-access
       Runtime: python3.12
       Code:
