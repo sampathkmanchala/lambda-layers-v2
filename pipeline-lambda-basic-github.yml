@@ -81,6 +81,7 @@ Resources:
         phases:
           build:
             commands:
+              - pip3 install -r ./src/requires.txt --quiet --target .
               - echo "Zipping Lambda code from ./src"
               - mkdir -p dist
               - cd src
