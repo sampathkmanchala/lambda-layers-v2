@@ -94,21 +94,22 @@ Resources:
             build:
               commands:
                 - set -e
-                - echo "Building layer from requirements.txt"
-                - test -f requirements.txt || { echo "requirements.txt missing at repo root"; exit 1; }
+                - echo "Building layer from ./src/requires.txt"
+                - cd src
+                - test -f requires.txt || { echo "requires.txt missing at repo root"; exit 1; }
                 - mkdir -p layer/python
-                - pip3 install -r requirements.txt -t layer/python
+                - pip3 install -r requires.txt -t layer/python
                 - cd layer
-                - zip -r ../dist/layer.zip .
+                - zip -r layer.zip .
                 - cd ..
-                - REQ_HASH=$(sha256sum requirements.txt | awk '{print $1}')
+                - REQ_HASH=$(sha256sum requires.txt | awk '{print $1}')
                 - LAYER_KEY="layers/${REQ_HASH}.zip"
                 - echo "Publishing/reusing layer s3://${ARTIFACT_BUCKET}/${LAYER_KEY}"
                 - if aws s3api head-object --bucket "${ARTIFACT_BUCKET}" --key "${LAYER_KEY}" >/dev/null 2>&1; then
                     echo "Layer object exists. Re-using existing key.";
                   else
                     echo "Uploading new layer object.";
-                    aws s3 cp dist/layer.zip "s3://${ARTIFACT_BUCKET}/${LAYER_KEY}";
+                    aws s3 cp layer.zip "s3://${ARTIFACT_BUCKET}/${LAYER_KEY}";
                   fi
                 - echo "Get VersionId for the layer object (bucket is versioned)"
                 - LAYER_VER=$(aws s3api head-object --bucket "${ARTIFACT_BUCKET}" --key "${LAYER_KEY}" --query 'VersionId' --output text)
