@@ -37,6 +37,9 @@ Resources:
         S3Key: !Ref CodeS3Key
       Timeout: 10
       MemorySize: 128
+      Description: "Lambda using a layer built from requires.txt"
+      Layers:
+        - !Ref LambdaLayer
 
   HelloWorldLambda2:
     Type: AWS::Lambda::Function
@@ -50,4 +53,13 @@ Resources:
         S3Key: !Ref CodeS3Key
       Timeout: 10
       MemorySize: 128
-
+      Description: "Lambda using a layer built from requires.txt"
+      Layers:
+        - !Ref LambdaLayer
+Outputs:
+  LambdaFunctionName:
+    Description: Name of the Lambda function
+    Value: !Ref HelloWorldLambda
+  LambdaLayerArn:
+    Description: Latest published Lambda Layer version ARN
+    Value: !Ref LambdaLayer
