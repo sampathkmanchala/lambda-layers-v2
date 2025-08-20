@@ -3,8 +3,28 @@ Parameters:
     Type: String
   CodeS3Key:
     Type: String
+  LayerS3Bucket:
+    Type: String
+  LayerS3Key:
+    Type: String
+  LayerS3ObjectVersion:
+    Type: String
+    Description: S3 object version id for the layer zip (artifact bucket has versioning)
 
 Resources:
+  LambdaLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      Content:
+        S3Bucket: !Ref LayerS3Bucket
+        S3Key: !Ref LayerS3Key
+        S3ObjectVersion: !Ref LayerS3ObjectVersion
+      CompatibleRuntimes:
+        - python3.12
+      Description: Dependencies from requires.txt
+      LicenseInfo: MIT
+
+
   HelloWorldLambda:
     Type: AWS::Lambda::Function
     Properties:
@@ -17,6 +37,9 @@ Resources:
         S3Key: !Ref CodeS3Key
       Timeout: 10
       MemorySize: 128
+      Description: "Lambda using a layer built from requires.txt"
+      Layers:
+        - !Ref LambdaLayer
 
   HelloWorldLambda2:
     Type: AWS::Lambda::Function
@@ -30,4 +53,13 @@ Resources:
         S3Key: !Ref CodeS3Key
       Timeout: 10
       MemorySize: 128
-
+      Description: "Lambda using a layer built from requires.txt"
+      Layers:
+        - !Ref LambdaLayer
+Outputs:
+  LambdaFunctionName:
+    Description: Name of the Lambda function
+    Value: !Ref HelloWorldLambda
+  LambdaLayerArn:
+    Description: Latest published Lambda Layer version ARN
+    Value: !Ref LambdaLayer
