@@ -1,0 +1,288 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CodePipeline to build & deploy Lambda & Layer via CloudFormation (GitHub source)
+
+Parameters:
+  PipelineName:
+    Type: String
+    Default: lambda-basic-pipeline-github-layers
+  GitHubConnectionArn:
+    Type: String
+    Default: arn:aws:codeconnections:us-east-1:132502993358:connection/f96d1b39-bc0d-4bf7-b91d-23a27743d935
+    Description: ARN of an existing CodeStar Connection to GitHub (create in Developer Tools > Connections)
+  FullRepositoryId:
+    Type: String
+    Default: sampathkmanchala/lambda-layers-v2
+    Description: GitHub owner/repo (e.g., your-org/your-repo)
+  BranchName:
+    Type: String
+    Default: main
+  LambdaStackName:
+    Type: String
+    Default: lambda-basic-stack-layers
+  LambdaTemplatePath:
+    Type: String
+    Default: lambda-basic.yml
+  BuildComputeType:
+    Type: String
+    Default: BUILD_GENERAL1_SMALL
+    AllowedValues: [BUILD_GENERAL1_SMALL, BUILD_GENERAL1_MEDIUM, BUILD_GENERAL1_LARGE]
+  
+
+Resources:
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      VersioningConfiguration: { Status: Enabled }
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+
+  CodeBuildServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: codebuild.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+      Policies:
+        - PolicyName: CodeBuildS3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:PutObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt ArtifactBucket.Arn
+                  - !Sub '${ArtifactBucket.Arn}/*'
+
+  CodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub '${AWS::StackName}-build'
+      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      Artifacts: { Type: CODEPIPELINE }
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: !Ref BuildComputeType
+        Image: aws/codebuild/standard:7.0
+        EnvironmentVariables:
+          - Name: ARTIFACT_BUCKET
+            Type: PLAINTEXT
+            Value: !Ref ArtifactBucket
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: |
+          version: 0.2
+          phases:
+            install:
+              commands:
+                - python3 --version
+                - pip3 --version
+            build:
+              commands:
+                - set -e
+                # 1) Build function zip from ./src
+                - echo "Zipping Lambda function from ./src"
+                - mkdir -p dist
+                - cd src
+                - zip -r ../dist/function.zip .
+                - cd ..
+
+                # 2) Build layer zip from requires.txt, need to make this code effective
+                - echo "Building layer from requires.txt"
+                - test -f requires.txt || { echo "requires.txt missing at repo root"; exit 1; }
+                #- mkdir -p layer/python
+                #- pip3 install -r requires.txt -t layer/python
+                #- cd layer
+                #- zip -r ../dist/layer.zip .
+                #- cd ..
+
+                # 3) Compute hash of requires.txt to get a stable key
+                - REQ_HASH=$(sha256sum requires.txt | awk '{print $1}')
+                - LAYER_KEY="layers/${REQ_HASH}.zip"
+                - CODE_KEY="lambda/${CODEBUILD_RESOLVED_SOURCE_VERSION:-latest}.zip"
+
+                # 4) Upload function zip
+                - echo "Uploading function zip to s3://${ARTIFACT_BUCKET}/${CODE_KEY}"
+                - aws s3 cp dist/function.zip "s3://${ARTIFACT_BUCKET}/${CODE_KEY}"
+
+                # 5) Upload/reuse layer zip (only if key doesn't exist)
+                - echo "Publishing/reusing layer s3://${ARTIFACT_BUCKET}/${LAYER_KEY}"
+                - if aws s3api head-object --bucket "${ARTIFACT_BUCKET}" --key "${LAYER_KEY}" >/dev/null 2>&1; then
+                    echo "Layer object exists. Re-using existing key.";
+                  else
+                    echo "Uploading new layer object.";
+                    mkdir -p layer/python;
+                    pip3 install -r requires.txt -t layer/python;
+                    cd layer;
+                    zip -r ../dist/layer.zip .;
+                    cd ..;
+                    aws s3 cp dist/layer.zip "s3://${ARTIFACT_BUCKET}/${LAYER_KEY}";
+                  fi
+
+                # 6) Get VersionId for the layer object (bucket is versioned)
+                - LAYER_VER=$(aws s3api head-object --bucket "${ARTIFACT_BUCKET}" --key "${LAYER_KEY}" --query 'VersionId' --output text)
+
+                # 7) Create CloudFormation parameter file (function + layer)
+                - printf '{"Parameters":{"CodeS3Bucket":"%s","CodeS3Key":"%s","LayerS3Bucket":"%s","LayerS3Key":"%s","LayerS3ObjectVersion":"%s"}}' \
+                    "$ARTIFACT_BUCKET" "$CODE_KEY" "$ARTIFACT_BUCKET" "$LAYER_KEY" "$LAYER_VER" > cfn-params.json
+
+          artifacts:
+            files:
+              - cfn-params.json
+            discard-paths: yes
+      TimeoutInMinutes: 30
+      Cache: { Type: NO_CACHE }
+
+  CodePipelineServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: codepipeline.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: PipelinePermissions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [s3:GetObject, s3:PutObject, s3:ListBucket]
+                Resource:
+                  - !GetAtt ArtifactBucket.Arn
+                  - !Sub '${ArtifactBucket.Arn}/*'
+              - Effect: Allow
+                Action: [codebuild:StartBuild, codebuild:BatchGetBuilds]
+                Resource: !GetAtt CodeBuildProject.Arn
+              - Effect: Allow
+                Action:
+                  - cloudformation:CreateStack
+                  - cloudformation:UpdateStack
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:Describe*
+                  - cloudformation:GetTemplate
+                Resource: '*'
+              - Effect: Allow
+                Action: codestar-connections:UseConnection
+                Resource: !Ref GitHubConnectionArn
+              # Let CodePipeline pass the CFN execution role to CloudFormation
+              - Effect: Allow
+                Action: iam:PassRole
+                Resource: !GetAtt CfnExecutionRole.Arn
+
+  # CloudFormation execution role (what CFN assumes when deploying your target stack)
+  CfnExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: cloudformation.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CFN-Deploy-Lambda-And-Layer
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # Lambda function operations
+              - Effect: Allow
+                Action:
+                  - lambda:CreateFunction
+                  - lambda:UpdateFunctionCode
+                  - lambda:UpdateFunctionConfiguration
+                  - lambda:PublishVersion
+                  - lambda:GetFunction
+                  - lambda:GetFunctionConfiguration
+                Resource: "*"
+              # Lambda layer operations
+              - Effect: Allow
+                Action:
+                  - lambda:PublishLayerVersion
+                  - lambda:GetLayerVersion
+                Resource: "*"
+              # Read artifacts
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                Resource: !Sub '${ArtifactBucket.Arn}/*'
+              # Pass the function's execution role (scope to exact ARN if known)
+              - Effect: Allow
+                Action: iam:PassRole
+                Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:role/*'
+
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: !Ref PipelineName
+      RoleArn: !GetAtt CodePipelineServiceRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location: !Ref ArtifactBucket
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: GitHub
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: CodeStarSourceConnection
+                Version: '1'
+              Configuration:
+                ConnectionArn: !Ref GitHubConnectionArn
+                FullRepositoryId: !Ref FullRepositoryId
+                BranchName: !Ref BranchName
+                DetectChanges: true
+                OutputArtifactFormat: CODE_ZIP
+              OutputArtifacts:
+                - Name: SourceArtifact
+        - Name: Build
+          Actions:
+            - Name: BuildZipAndLayer
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              Configuration:
+                ProjectName: !Ref CodeBuildProject
+              InputArtifacts:
+                - Name: SourceArtifact
+              OutputArtifacts:
+                - Name: BuildArtifact
+        - Name: Deploy
+          Actions:
+            - Name: CFNDeploy
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: '1'
+              Configuration:
+                ActionMode: CREATE_UPDATE
+                StackName: !Ref LambdaStackName
+                TemplatePath: !Sub 'SourceArtifact::${LambdaTemplatePath}'
+                TemplateConfiguration: 'BuildArtifact::cfn-params.json'
+                Capabilities: CAPABILITY_IAM
+                RoleArn: !GetAtt CfnExecutionRole.Arn
+              InputArtifacts:
+                - Name: SourceArtifact
+                - Name: BuildArtifact
+
+Outputs:
+  PipelineNameOut:
+    Value: !Ref Pipeline
+  ArtifactBucketName:
+    Value: !Ref ArtifactBucket
