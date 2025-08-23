@@ -96,7 +96,7 @@ Resources:
                 - zip -r ../dist/function.zip .
                 - cd ..
 
-                # 2) Build layer zip from requires.txt
+                # 2) Build layer zip from requires.txt, need to make this code effective
                 - echo "Building layer from requires.txt"
                 - test -f requires.txt || { echo "requires.txt missing at repo root"; exit 1; }
                 #- mkdir -p layer/python
@@ -120,11 +120,11 @@ Resources:
                     echo "Layer object exists. Re-using existing key.";
                   else
                     echo "Uploading new layer object.";
-                    mkdir -p layer/python
-                    pip3 install -r requires.txt -t layer/python
-                    cd layer
-                    zip -r ../dist/layer.zip .
-                    cd ..
+                    mkdir -p layer/python;
+                    pip3 install -r requires.txt -t layer/python;
+                    cd layer;
+                    zip -r ../dist/layer.zip .;
+                    cd ..;
                     aws s3 cp dist/layer.zip "s3://${ARTIFACT_BUCKET}/${LAYER_KEY}";
                   fi
 
