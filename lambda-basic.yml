@@ -15,7 +15,6 @@ Resources:
       Content:
         S3Bucket: !Ref LayerS3Bucket
         S3Key: !Ref LayerS3Key
-        S3ObjectVersion: !Ref LayerS3ObjectVersion
       CompatibleRuntimes:
         - python3.12
       Description: Dependencies from requires.txt
