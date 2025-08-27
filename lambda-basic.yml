@@ -38,7 +38,6 @@ Resources:
         - !Ref LambdaLayer
 
 
-
 Outputs:
   LambdaFunctionName:
     Description: Name of the Lambda function
