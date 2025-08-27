@@ -36,7 +36,21 @@ Resources:
       Description: "Lambda using a layer built from requires.txt"
       Layers:
         - !Ref LambdaLayer
-
+HelloWorld3Lambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: hello-world-lambda-pipeline-3
+      Handler: lambda_function3.handler
+      Role: arn:aws:iam::132502993358:role/lambda-full-access
+      Runtime: python3.12
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Timeout: 10
+      MemorySize: 128
+      Description: "Lambda using a layer built from requires.txt"
+      Layers:
+        - !Ref LambdaLayer
 
 Outputs:
   LambdaFunctionName:
