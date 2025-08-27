@@ -65,6 +65,9 @@ Resources:
           S3Key: !Ref CodeS3Key
         Timeout: 10
         MemorySize: 128
+        Description: "Lambda using a layer built from requires.txt"
+        Layers:
+          - !Ref LambdaLayer1
      
 
 Outputs:
