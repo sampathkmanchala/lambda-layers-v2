@@ -9,7 +9,7 @@ Parameters:
     Type: String
   
 Resources:
-  LambdaLayer:
+  LambdaLayer1:
     Type: AWS::Lambda::LayerVersion
     Properties:
       Content:
@@ -71,6 +71,6 @@ Outputs:
   LambdaFunctionName:
     Description: Name of the Lambda function
     Value: !Ref HelloWorldLambda
-  LambdaLayerArn:
+  LambdaLayer1Arn:
     Description: Latest published Lambda Layer version ARN
-    Value: !Ref LambdaLayer
+    Value: !Ref LambdaLayer1
