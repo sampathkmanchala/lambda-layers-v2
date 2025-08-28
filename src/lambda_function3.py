@@ -1,6 +1,6 @@
-import requests
-# from pyqrcode import create as create_qr_code 
+from faker import Faker
 
 def handler(event,context):
- 
-  return "Hello World3"
+ fake = Faker()
+ fake_address = fake.street_address()
+ return fake_address
