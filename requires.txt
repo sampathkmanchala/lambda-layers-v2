@@ -3,3 +3,4 @@ requests
 pyqrcode
 faker
 urllib3==1.26.18
+boltons
