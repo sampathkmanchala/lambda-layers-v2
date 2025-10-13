@@ -8,8 +8,8 @@ Parameters:
   LayerS3Key:
     Type: String
   LayerS3ObjectVersion:
-  Type: String
-  Description: S3 object version id for the layer zip (artifact bucket has versioning)
+    Type: String
+    Description: S3 object version id for the layer zip (artifact bucket has versioning)
   
 Resources:
   LambdaLayer1:
