@@ -7,6 +7,9 @@ Parameters:
     Type: String
   LayerS3Key:
     Type: String
+  LayerS3ObjectVersion:
+  Type: String
+  Description: S3 object version id for the layer zip (artifact bucket has versioning)
   
 Resources:
   LambdaLayer1:
@@ -15,6 +18,7 @@ Resources:
       Content:
         S3Bucket: !Ref LayerS3Bucket
         S3Key: !Ref LayerS3Key
+        S3ObjectVersion: !Ref LayerS3ObjectVersion
       CompatibleRuntimes:
         - python3.12
       Description: Dependencies from requires.txt
@@ -24,7 +28,7 @@ Resources:
   HelloWorldLambda:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: hello-world-lambda-pipeline
+      FunctionName: hello-world-lambda-pipelines-1
       Handler: index.handler
       Role: arn:aws:iam::132502993358:role/lambda-full-access
       Runtime: python3.12
@@ -37,38 +41,6 @@ Resources:
       Layers:
         - !Ref LambdaLayer1
 
-  HelloWorldLambda2:
-      Type: AWS::Lambda::Function
-      Properties:
-        FunctionName: hello-world-lambda-pipeline2
-        Handler: lambda_function.handler
-        Role: arn:aws:iam::132502993358:role/lambda-full-access
-        Runtime: python3.12
-        Code:
-          S3Bucket: !Ref CodeS3Bucket
-          S3Key: !Ref CodeS3Key
-        Timeout: 10
-        MemorySize: 128
-        Description: "Lambda using a layer built from requires.txt"
-        Layers:
-          - !Ref LambdaLayer1
-        
-  HelloWorldLambda3:
-      Type: AWS::Lambda::Function
-      Properties:
-        FunctionName: hello-world-lambda-pipeline3
-        Handler: lambda_function3.handler
-        Role: arn:aws:iam::132502993358:role/lambda-full-access
-        Runtime: python3.12
-        Code:
-          S3Bucket: !Ref CodeS3Bucket
-          S3Key: !Ref CodeS3Key
-        Timeout: 10
-        MemorySize: 128
-        Description: "Lambda using a layer built from requires.txt"
-        Layers:
-          - !Ref LambdaLayer1
-     
 
 Outputs:
   LambdaFunctionName:
